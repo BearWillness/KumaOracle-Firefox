@@ -53,6 +53,15 @@
       height: 30px;
       cursor: pointer;
     }
+    /* Logo styling */
+    #kuma-logo {
+      width: 60px; /* Increased size */
+      height: 60px;
+      margin-right: 10px;
+      border: 2px solid #ffffff; /* Added border */
+      border-radius: 1000px; /* Rounded corners */
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Added drop shadow */
+    }
     /* Main content styling */
     #main-content {
       flex: 1;
@@ -277,6 +286,7 @@
   <div id="container">
     <!-- Header -->
     <div id="header">
+      <img src="icons/kuma2.png" alt="Kuma Logo" id="kuma-logo">
       <h1>Kuma Oracle</h1>
       <!-- Settings Icon -->
       <div id="settings-icon">
@@ -308,7 +318,7 @@
     <button id="save-api-key">Save API Key</button>
     <div id="save-success-message">API Key saved successfully!</div>
     <div style="margin-top:20px; text-align:center;">
-      <a id="kuma-website" href="#" style="color:#ffffff; text-decoration:none; font-size:16px;">Kuma Capital X</a>
+      <a id="kuma-website" href="#" style="color:#ffffff; text-decoration:none; font-size:16px; text-decoration: underline;">Kuma Capital</a>
     </div>
   </div>
   <script src="popup.js"></script>
