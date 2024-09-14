@@ -1,185 +1,206 @@
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-document.getElementById('logo').addEventListener('click', (event) => {
-  event.stopPropagation(); 
-  const dropdown = document.getElementById('dropdown');
-  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-});
+document.addEventListener('DOMContentLoaded', () => {
+  const settingsIcon = document.getElementById('settings-icon');
+  const settingsPopup = document.getElementById('settings-popup');
+  const closeSettings = document.getElementById('close-settings');
+  const overlay = document.getElementById('overlay');
+  const extractButton = document.getElementById('extract');
+  const loadingSpinner = document.getElementById('loading-spinner');
+  const outputDiv = document.getElementById('output');
+  const placeholderText = document.getElementById('placeholder-text');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const saveApiKeyButton = document.getElementById('save-api-key');
+  const saveSuccessMessage = document.getElementById('save-success-message');
 
-document.addEventListener('click', (event) => {
-  const dropdown = document.getElementById('dropdown');
-  if (event.target.id !== 'logo' && dropdown.style.display === 'block') {
-    dropdown.style.display = 'none';
+  // Function to capitalize the first letter
+  function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
   }
-});
 
-document.getElementById('kuma-website').addEventListener('click', () => {
-  window.open('https://x.com/Kuma_Capital', '_blank'); 
-});
+  // Open settings popup
+  settingsIcon.addEventListener('click', (event) => {
+    event.stopPropagation();
+    overlay.style.display = 'block';
+    settingsPopup.style.display = 'block';
+    browserAPI.storage.local.get('openaiApiKey').then((result) => {
+      apiKeyInput.value = result.openaiApiKey || '';
+    }).catch(error => console.error('Error retrieving API key:', error));
+  });
 
-document.getElementById('settings').addEventListener('click', (event) => {
-  event.stopPropagation();
-  const settingsPopup = document.getElementById('settings-popup');
-  settingsPopup.style.display = 'block';
-  document.getElementById('dropdown').style.display = 'none'; 
+  // Close settings popup when clicking outside or on 'X'
+  overlay.addEventListener('click', closeSettingsPopup);
+  closeSettings.addEventListener('click', closeSettingsPopup);
 
-  browserAPI.storage.local.get('openaiApiKey').then((result) => {
-    const apiKey = result.openaiApiKey || '';
-    document.getElementById('api-key-input').value = apiKey;
-  }).catch(error => console.error('Error retrieving API key:', error));
-});
-
-document.addEventListener('click', (event) => {
-  const settingsPopup = document.getElementById('settings-popup');
-  if (!settingsPopup.contains(event.target) && settingsPopup.style.display === 'block') {
+  function closeSettingsPopup() {
+    overlay.style.display = 'none';
     settingsPopup.style.display = 'none';
+    saveSuccessMessage.style.display = 'none';
   }
-}, true);
 
-document.getElementById('save-api-key').addEventListener('click', () => {
-  const apiKey = document.getElementById('api-key-input').value;
-  const successMessage = document.getElementById('save-success-message');
+  // Open Kuma Capital X link from settings popup
+  document.getElementById('kuma-website').addEventListener('click', (event) => {
+    event.preventDefault();
+    window.open('https://x.com/Kuma_Capital', '_blank');
+  });
 
-  if (apiKey) {
-    browserAPI.storage.local.set({ openaiApiKey: apiKey }).then(() => {
-      successMessage.textContent = 'API Key saved successfully!';
-      successMessage.style.display = 'block'; 
-    }).catch((error) => {
-      console.error('Error saving API key:', error);
-    });
-  } else {
-    alert('Please enter a valid API Key');
-  }
-});
+  // Save API Key
+  saveApiKeyButton.addEventListener('click', () => {
+    const apiKey = apiKeyInput.value.trim();
+    if (apiKey) {
+      browserAPI.storage.local.set({ openaiApiKey: apiKey }).then(() => {
+        saveSuccessMessage.textContent = 'API Key saved successfully!';
+        saveSuccessMessage.style.display = 'block';
+        setTimeout(() => {
+          saveSuccessMessage.style.display = 'none';
+          closeSettingsPopup();
+        }, 1500);
+      }).catch((error) => {
+        console.error('Error saving API key:', error);
+      });
+    } else {
+      alert('Please enter a valid API Key');
+    }
+  });
 
-document.getElementById('extract').addEventListener('click', () => {
-  document.getElementById('loading-spinner').style.display = 'block';
-
-  browserAPI.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
-    browserAPI.tabs.sendMessage(tabs[0].id, { action: 'extractContent' }).then((response) => {
-      if (response && response.content) {
-        extractAndAnalyzeContent(response.content);
-      } else {
-        document.getElementById('status').textContent = 'Error: No content to analyze.';
-        document.getElementById('loading-spinner').style.display = 'none'; 
-      }
-    }).catch((error) => {
-      console.error('Error sending message to content script:', error);
-      document.getElementById('loading-spinner').style.display = 'none';
+  // Extract and analyze content
+  extractButton.addEventListener('click', () => {
+    outputDiv.innerHTML = '';
+    placeholderText.style.display = 'none';
+    loadingSpinner.style.display = 'block';
+    browserAPI.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+      browserAPI.tabs.sendMessage(tabs[0].id, { action: 'extractContent' }).then((response) => {
+        if (response && response.content) {
+          extractAndAnalyzeContent(response.content);
+        } else {
+          loadingSpinner.style.display = 'none';
+          alert('Error: No content to analyze.');
+        }
+      }).catch((error) => {
+        console.error('Error sending message to content script:', error);
+        loadingSpinner.style.display = 'none';
+        alert('Error: Unable to extract content.');
+      });
     });
   });
-});
 
-function extractAndAnalyzeContent(content) {
-  browserAPI.storage.local.get('openaiApiKey').then((result) => {
-    const apiKey = result.openaiApiKey;
-
-    if (!apiKey) {
-      document.getElementById('status').textContent = 'Error: You need to supply an API key.';
-      document.getElementById('loading-spinner').style.display = 'none'; 
-      return;
-    }
-
-    document.getElementById('status').textContent = 'Status: Analyzing...';
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
-
-    fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{
-          role: 'user',
-          content: `I want you to read the given article, and analyze it. Then provide a JSON object with as many affected assets (at least 5) as you can and the reasoning behind their short-term, medium-term, and long-term impacts (bullish, bearish, neutral). The response format is:
-
-        [
-          {
-            "asset": "assetname",
-            "STA": "",
-            "STA_reason": "",
-            "MTA": "",
-            "MTA_reason": "",
-            "LTA": "",
-            "LTA_reason": ""
-          },
-          {
-            "asset": "asset2name",
-            "STA": "",
-            "STA_reason": "",
-            "MTA": "",
-            "MTA_reason": "",
-            "LTA": "",
-            "LTA_reason": ""
-          }
-        ]
-
-
-        Only the JSON object as a response with no formatting at all.
-        ${content}`
-
-        }],
-        temperature: 0.7
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      const rawContent = data.choices[0]?.message?.content;
-
-      let parsedJson;
-      try {
-        parsedJson = JSON.parse(rawContent);
-      } catch (e) {
-        console.error('Error parsing JSON:', e);
-        document.getElementById('status').textContent = 'Status: Error parsing JSON';
-        document.getElementById('loading-spinner').style.display = 'none'; 
+  // Function to extract and analyze content
+  function extractAndAnalyzeContent(content) {
+    browserAPI.storage.local.get('openaiApiKey').then((result) => {
+      const apiKey = result.openaiApiKey;
+      if (!apiKey) {
+        loadingSpinner.style.display = 'none';
+        alert('Error: API Key not set.');
         return;
       }
+      const apiUrl = 'https://api.openai.com/v1/chat/completions';
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [{
+            role: 'user',
+            content: `I want you to read the given article, and analyze it. Then provide a JSON object with as many affected assets (at least 5) as you can and the reasoning behind their short-term, medium-term, and long-term impacts (Bullish, Bearish, Neutral). The response format is:
 
-      document.getElementById('loading-spinner').style.display = 'none'; 
-      document.getElementById('status').textContent = 'Status: Analysis Complete';
-      displayResults(parsedJson);
-    })
-    .catch(error => {
-      document.getElementById('status').textContent = 'Status: Error during analysis.';
-      document.getElementById('loading-spinner').style.display = 'none';
-      console.error('Error:', error);
+            [
+              {
+                "asset": "assetname",
+                "S": "",
+                "S_reason": "",
+                "M": "",
+                "M_reason": "",
+                "L": "",
+                "L_reason": ""
+              },
+              {
+                "asset": "asset2name",
+                "S": "",
+                "S_reason": "",
+                "M": "",
+                "M_reason": "",
+                "L": "",
+                "L_reason": ""
+              }
+            ]
+
+            Only the JSON object as a response with no formatting at all.
+            ${content}`
+          }],
+          temperature: 0.7
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        const rawContent = data.choices[0]?.message?.content;
+        let parsedJson;
+        try {
+          parsedJson = JSON.parse(rawContent);
+        } catch (e) {
+          console.error('Error parsing JSON:', e);
+          loadingSpinner.style.display = 'none';
+          alert('Error parsing response.');
+          return;
+        }
+        loadingSpinner.style.display = 'none';
+        displayResults(parsedJson);
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loadingSpinner.style.display = 'none';
+        alert('Error during analysis.');
+      });
+    }).catch((error) => {
+      console.error('Error retrieving API key:', error);
+      loadingSpinner.style.display = 'none';
+      alert('Error retrieving API key.');
     });
-  }).catch((error) => {
-    document.getElementById('status').textContent = 'Error retrieving API key.';
-    document.getElementById('loading-spinner').style.display = 'none'; 
-    console.error('Error retrieving API key:', error);
-  });
-}
+  }
 
-function displayResults(results) {
-  const outputDiv = document.getElementById('output');
-  outputDiv.innerHTML = ''; 
+  // Function to display results
+  function displayResults(results) {
+    outputDiv.innerHTML = '';
 
-  results.forEach(result => {
-    const assetDiv = document.createElement('div');
-    assetDiv.className = 'asset';
-    assetDiv.innerHTML = `
-      <div class="asset-name">${result.asset}</div>
-      <div class="timeframe">
-        <div class="sta ${result.STA.toLowerCase()}">STA: ${result.STA}</div>
-        <div class="mta ${result.MTA.toLowerCase()}">MTA: ${result.MTA}</div>
-        <div class="lta ${result.LTA.toLowerCase()}">LTA: ${result.LTA}</div>
-      </div>
-      <div class="reason">
-        <p><strong>Short Term Affect:</strong> ${result.STA_reason}</p>
-        <p><strong>Medium Term Affect:</strong> ${result.MTA_reason}</p>
-        <p><strong>Long Term Affect:</strong> ${result.LTA_reason}</p>
-      </div>
+    // Add timeframe header
+    const timeframeHeader = document.createElement('div');
+    timeframeHeader.id = 'timeframe-header';
+    timeframeHeader.innerHTML = `
+      <div>Short Term</div>
+      <div>Medium Term</div>
+      <div>Long Term</div>
     `;
+    outputDiv.appendChild(timeframeHeader);
 
-    assetDiv.addEventListener('click', () => {
-      const reasonDiv = assetDiv.querySelector('.reason');
-      reasonDiv.classList.toggle('show'); 
+    results.forEach(result => {
+      const assetDiv = document.createElement('div');
+      assetDiv.className = 'asset';
+      assetDiv.innerHTML = `
+        <div class="asset-name">${result.asset}</div>
+        <div class="timeframe">
+          <div class="${result.S.toLowerCase()}">${capitalizeFirstLetter(result.S)}</div>
+          <div class="${result.M.toLowerCase()}">${capitalizeFirstLetter(result.M)}</div>
+          <div class="${result.L.toLowerCase()}">${capitalizeFirstLetter(result.L)}</div>
+        </div>
+        <div class="reason">
+          <p><strong>Short Term Impact:</strong><br>${result.S_reason}</p>
+          <p><strong>Medium Term Impact:</strong><br>${result.M_reason}</p>
+          <p><strong>Long Term Impact:</strong><br>${result.L_reason}</p>
+        </div>
+      `;
+      assetDiv.addEventListener('click', () => {
+        const reasonDiv = assetDiv.querySelector('.reason');
+        if (reasonDiv.style.display === 'block') {
+          reasonDiv.style.display = 'none';
+          assetDiv.style.maxHeight = 'none';
+        } else {
+          reasonDiv.style.display = 'block';
+          assetDiv.style.maxHeight = assetDiv.scrollHeight + 'px';
+        }
+      });
+      outputDiv.appendChild(assetDiv);
     });
-
-    outputDiv.appendChild(assetDiv);
-  });
-}
+  }
+});
